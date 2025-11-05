@@ -1,0 +1,76 @@
+{
+  "dashboard": {
+    "title": "PriceCanary Monitoring",
+    "panels": [
+      {
+        "title": "Throughput (Requests/sec)",
+        "targets": [
+          {
+            "expr": "rate(pricecanary_ingest_requests_total[5m])",
+            "legendFormat": "{{status}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Drift Scores",
+        "targets": [
+          {
+            "expr": "pricecanary_drift_score_price",
+            "legendFormat": "Price PSI"
+          },
+          {
+            "expr": "pricecanary_drift_score_stock",
+            "legendFormat": "Stock PSI"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Alert Counts",
+        "targets": [
+          {
+            "expr": "sum(rate(pricecanary_alerts_total[5m])) by (severity)",
+            "legendFormat": "{{severity}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Ingest Latency",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(pricecanary_ingest_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(pricecanary_ingest_latency_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Active Alerts",
+        "targets": [
+          {
+            "expr": "pricecanary_active_alerts",
+            "legendFormat": "{{severity}} - {{alert_type}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Validation Pass Rate",
+        "targets": [
+          {
+            "expr": "pricecanary_validation_pass_rate",
+            "legendFormat": "Pass Rate"
+          }
+        ],
+        "type": "graph"
+      }
+    ]
+  }
+}
+
