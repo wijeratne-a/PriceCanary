@@ -1,0 +1,9 @@
+timestamp,sku,violation_type,reason,severity
+2025-11-04T22:25:17.590637,SKU-001,schema_error,"Pydantic validation failed: 1 validation error for TelemetryRecord
+price
+  Input should be greater than 0 [type=greater_than, input_value=-10.0, input_type=float]
+    For further information visit https://errors.pydantic.dev/2.5/v/greater_than",high
+2025-11-04T22:25:33.859500,SKU-001,schema_error,"Pydantic validation failed: 1 validation error for TelemetryRecord
+price
+  Input should be greater than 0 [type=greater_than, input_value=-10.0, input_type=float]
+    For further information visit https://errors.pydantic.dev/2.5/v/greater_than",high

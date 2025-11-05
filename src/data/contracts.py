@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 import pandas as pd
 import pandera as pa
 from pandera import Column, DataFrameSchema, Check
@@ -32,7 +32,8 @@ class TelemetryRecord(BaseModel):
     purchases: int = Field(..., ge=0, description="Purchase count")
     referrer: Optional[str] = Field(None, description="Traffic referrer source")
 
-    @validator('price', pre=True)
+    @field_validator('price', mode='before')
+    @classmethod
     def normalize_price(cls, v):
         """Normalize price: if > 1000, assume cents, divide by 100"""
         if isinstance(v, (int, float)):
@@ -41,24 +42,18 @@ class TelemetryRecord(BaseModel):
             return float(v)
         return v
 
-    @validator('add_to_cart')
-    def validate_add_to_cart(cls, v, values):
-        """Add to cart should not exceed views"""
-        if 'views' in values and v > values['views']:
+    @model_validator(mode='after')
+    def validate_funnel(self):
+        """Validate conversion funnel"""
+        if self.add_to_cart > self.views:
             raise ValueError('add_to_cart cannot exceed views')
-        return v
-
-    @validator('purchases')
-    def validate_purchases(cls, v, values):
-        """Purchases should not exceed add_to_cart"""
-        if 'add_to_cart' in values and v > values['add_to_cart']:
+        if self.purchases > self.add_to_cart:
             raise ValueError('purchases cannot exceed add_to_cart')
-        return v
+        return self
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict(
+        # JSON serialization handled automatically for datetime
+    )
 
 
 class ValidationResult:
@@ -93,7 +88,7 @@ class ValidationResult:
 
 # Pandera schema for DataFrame validation
 TELEMETRY_SCHEMA = DataFrameSchema({
-    "timestamp": Column(pd.DatetimeTZDtype, nullable=False),
+    "timestamp": Column(pd.DatetimeTZDtype(tz='UTC'), nullable=False),
     "sku": Column(str, nullable=False, checks=Check.str_length(min_value=1)),
     "price": Column(
         float,
@@ -163,7 +158,7 @@ class DataContractValidator:
         # Validate with Pydantic
         try:
             telemetry = TelemetryRecord(**record)
-            normalized_record = telemetry.dict()
+            normalized_record = telemetry.model_dump()
         except Exception as e:
             result.add_violation(
                 ViolationType.SCHEMA_ERROR,

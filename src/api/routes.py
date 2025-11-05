@@ -57,7 +57,7 @@ async def ingest_telemetry(record: TelemetryRecordRequest):
     
     try:
         # Convert to dict
-        record_dict = record.dict()
+        record_dict = record.model_dump()
         
         # Validate with data contracts
         validation_result = contract_validator.validate_record(record_dict)
