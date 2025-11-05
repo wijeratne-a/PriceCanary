@@ -163,7 +163,7 @@ class DriftDetector:
         Returns:
             Dictionary with drift detection results
         """
-        if not self.baseline_ready or len(self.recent_data["price"]) < 10:
+        if len(self.baseline_data["price"]) < 10 or len(self.recent_data["price"]) < 5:
             return {
                 "drift_detected": False,
                 "psi": 0.0,
@@ -175,14 +175,8 @@ class DriftDetector:
         baseline_prices = np.array(self.baseline_data["price"])
         recent_prices = np.array(self.recent_data["price"])
         
-        # Calculate PSI for price velocity (rate of change)
-        baseline_velocity = np.diff(baseline_prices[-100:]) if len(baseline_prices) > 1 else np.array([0])
-        recent_velocity = np.diff(recent_prices) if len(recent_prices) > 1 else np.array([0])
-        
-        if len(baseline_velocity) > 0 and len(recent_velocity) > 0:
-            psi = self.calculate_psi(baseline_velocity, recent_velocity)
-        else:
-            psi = 0.0
+        # Calculate PSI directly on price distributions for robustness
+        psi = self.calculate_psi(baseline_prices, recent_prices)
         
         # Calculate KS test
         ks_stat, ks_pvalue = self.calculate_ks_statistic(baseline_prices, recent_prices)
@@ -209,7 +203,7 @@ class DriftDetector:
         Returns:
             Dictionary with drift detection results
         """
-        if not self.baseline_ready or len(self.recent_data["stock"]) < 10:
+        if len(self.baseline_data["stock"]) < 10 or len(self.recent_data["stock"]) < 5:
             return {
                 "drift_detected": False,
                 "psi": 0.0,

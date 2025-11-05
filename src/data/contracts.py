@@ -141,7 +141,8 @@ class DataContractValidator:
         """
         self.price_jump_threshold = price_jump_threshold
         self.max_price = max_price
-        self.price_history: Dict[str, List[float]] = {}  # Track price history per SKU
+        self.price_history: Dict[str, List[float]] = {}  # Track normalized price history per SKU
+        self.raw_price_history: Dict[str, List[float]] = {}  # Track raw price history per SKU
         
     def validate_record(self, record: Dict[str, Any]) -> ValidationResult:
         """
@@ -155,6 +156,10 @@ class DataContractValidator:
         """
         result = ValidationResult(is_valid=True)
         
+        # Capture raw values for unit/jump checks before normalization
+        raw_price = record.get("price")
+        raw_sku = record.get("sku") or ""
+
         # Validate with Pydantic
         try:
             telemetry = TelemetryRecord(**record)
@@ -170,6 +175,43 @@ class DataContractValidator:
         
         sku = normalized_record["sku"]
         price = normalized_record["price"]
+
+        # Raw price-based checks (prior to normalization effects)
+        if isinstance(raw_price, (int, float)) and raw_sku:
+            # Raw price jump detection
+            if raw_sku in self.raw_price_history and len(self.raw_price_history[raw_sku]) > 0:
+                last_raw = self.raw_price_history[raw_sku][-1]
+                if last_raw > 0:
+                    raw_ratio = raw_price / last_raw
+                    if raw_ratio > self.price_jump_threshold:
+                        result.add_violation(
+                            ViolationType.PRICE_JUMP,
+                            f"Raw price jumped from {last_raw} to {raw_price} ({raw_ratio:.2f}x) - exceeds threshold {self.price_jump_threshold}x",
+                            sku,
+                            "critical"
+                        )
+                    elif raw_ratio < (1.0 / self.price_jump_threshold):
+                        result.add_violation(
+                            ViolationType.PRICE_JUMP,
+                            f"Raw price dropped from {last_raw} to {raw_price} ({1/raw_ratio:.2f}x decrease) - exceeds threshold",
+                            sku,
+                            "high"
+                        )
+            # Record raw price history
+            if raw_sku not in self.raw_price_history:
+                self.raw_price_history[raw_sku] = []
+            self.raw_price_history[raw_sku].append(float(raw_price))
+            if len(self.raw_price_history[raw_sku]) > 100:
+                self.raw_price_history[raw_sku] = self.raw_price_history[raw_sku][-100:]
+
+            # Unit error heuristic: extremely large raw price that normalizes under threshold
+            if raw_price > self.max_price and price <= self.max_price:
+                result.add_violation(
+                    ViolationType.UNIT_ERROR,
+                    f"Raw price {raw_price} suggests unit mismatch despite normalized price {price}",
+                    sku,
+                    "critical"
+                )
         
         # Check for negative stock (should be caught by Pydantic, but double-check)
         if normalized_record["stock"] < 0:
@@ -180,7 +222,7 @@ class DataContractValidator:
                 "high"
             )
         
-        # Check for unit errors (price seems too high or too low)
+        # Check for unit errors (price seems too high even after normalization)
         if price > self.max_price:
             result.add_violation(
                 ViolationType.UNIT_ERROR,
@@ -189,7 +231,7 @@ class DataContractValidator:
                 "critical"
             )
         
-        # Check for large price jumps
+        # Check for large price jumps on normalized values
         if sku in self.price_history and len(self.price_history[sku]) > 0:
             last_price = self.price_history[sku][-1]
             if last_price > 0:
